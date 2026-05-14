@@ -1,14 +1,29 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
+from PIL import UnidentifiedImageError
 import io
-import numpy as np
 
-from services.inference import predict_image
+try:
+    from .services.inference import analyze_image
+except ImportError:
+    from services.inference import analyze_image
 
 app = FastAPI(
     title="TruthLens AI",
     description="Deepfake Detection Backend",
     version="1.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/")
@@ -21,13 +36,18 @@ async def predict_image_endpoint(file: UploadFile = File(...)):
     contents = await file.read()
 
     # Convert to image
-    image = Image.open(io.BytesIO(contents)).convert("RGB")
+    try:
+        image = Image.open(io.BytesIO(contents)).convert("RGB")
+    except UnidentifiedImageError as exc:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image") from exc
 
-    # Run ML inference
-    probability = predict_image(image)
+    # Run ML inference and explainability
+    result = analyze_image(image)
+    probability = result["fake_probability"]
 
     return {
         "filename": file.filename,
         "fake_probability": float(probability),
-        "label": "fake" if probability > 0.5 else "real"
+        "label": "fake" if probability > 0.5 else "real",
+        "heatmap_png_base64": result["heatmap_png_base64"],
     }
