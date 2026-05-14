@@ -238,6 +238,14 @@ pip install -r requirements.txt
 
 # Running Backend
 
+From the repository root:
+
+```bash
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Or from inside the backend directory:
+
 ```bash
 uvicorn main:app --reload
 ```
